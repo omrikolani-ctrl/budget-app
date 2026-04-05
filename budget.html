@@ -407,8 +407,9 @@
   <div class="header-top">
     <h1>Budget <span>฿</span></h1>
     <div class="header-actions">
-      <button class="icon-btn" onclick="exportData()">⬇ Export</button>
-      <button class="icon-btn" onclick="document.getElementById('import-input').click()">⬆ Import</button>
+      <button class="icon-btn" id="sync-btn" onclick="syncFromLine()" title="Sync from LINE bot">🤖 Sync</button>
+      <button class="icon-btn" onclick="exportData()">⬇</button>
+      <button class="icon-btn" onclick="document.getElementById('import-input').click()">⬆</button>
       <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
     </div>
   </div>
@@ -952,6 +953,68 @@
     };
     reader.readAsText(file);
     e.target.value = '';
+  }
+
+  /* ── LINE Sync ─────────────────────────────────────────────────────────── */
+  const SYNC_URL    = localStorage.getItem('budget_sync_url')    || '';
+  const SYNC_SECRET = localStorage.getItem('budget_sync_secret') || '';
+
+  async function syncFromLine(silent) {
+    const url    = localStorage.getItem('budget_sync_url');
+    const secret = localStorage.getItem('budget_sync_secret');
+    if (!url || !secret) {
+      const u = prompt('Enter your Vercel sync URL:\n(e.g. https://budget-app.vercel.app/api/sync)');
+      const s = prompt('Enter your sync secret:');
+      if (!u || !s) return;
+      localStorage.setItem('budget_sync_url', u.trim());
+      localStorage.setItem('budget_sync_secret', s.trim());
+      return syncFromLine(false);
+    }
+    const btn = document.getElementById('sync-btn');
+    btn.textContent = '⏳ Syncing…'; btn.disabled = true;
+    try {
+      const res  = await fetch(url, { headers: { 'x-sync-secret': secret } });
+      if (!res.ok) throw new Error('Auth failed');
+      const data = await res.json();
+      const incoming = data.transactions || [];
+      if (incoming.length === 0) {
+        if (!silent) showToast('No new transactions from LINE 👌');
+      } else {
+        const existing = new Set(transactions.map(t=>t.id));
+        incoming.forEach(t=>{ if(!existing.has(t.id)) transactions.unshift(t); });
+        transactions.sort((a,b)=>b.date.localeCompare(a.date));
+        save(); render();
+        // Clear the queue
+        await fetch(url, { method: 'DELETE', headers: { 'x-sync-secret': secret } });
+        showToast(`🤖 ${incoming.length} transaction${incoming.length>1?'s':''} synced from LINE!`);
+      }
+    } catch(e) {
+      if (!silent) showToast('Sync failed — check your URL and secret ❌', true);
+    }
+    btn.textContent = '🤖 Sync'; btn.disabled = false;
+  }
+
+  function showToast(msg, err) {
+    let t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.style.cssText = `position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+        background:${err?'#f43f5e':'#22c55e'};color:white;padding:10px 20px;border-radius:20px;
+        font-size:0.85rem;font-weight:600;z-index:999;white-space:nowrap;
+        box-shadow:0 4px 20px rgba(0,0,0,0.4);transition:opacity 0.3s;`;
+      document.body.appendChild(t);
+    }
+    t.style.background = err ? '#f43f5e' : '#22c55e';
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(()=>{ t.style.opacity='0'; }, 3000);
+  }
+
+  // Auto-sync silently on load if configured
+  if (localStorage.getItem('budget_sync_url')) {
+    setTimeout(() => syncFromLine(true), 1000);
   }
 
   /* ── Init ──────────────────────────────────────────────────────────────── */
