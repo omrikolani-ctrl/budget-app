@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Budget Manager – THB</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #334155;
+      --border: #475569;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --income: #22c55e;
+      --expense: #ef4444;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0 24px;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    header span {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: var(--surface);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    /* Dashboard */
+    .dashboard {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .card .label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    .card .amount {
+      font-size: 1.1rem;
+      font-weight: 700;
+      word-break: break-all;
+    }
+
+    .card.balance .amount { color: var(--text); }
+    .card.income-card .amount { color: var(--income); }
+    .card.expense-card .amount { color: var(--expense); }
+
+    /* Add Transaction Form */
+    .add-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .add-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .add-header h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .add-header .toggle-icon {
+      color: var(--text-muted);
+      transition: transform 0.2s;
+      font-size: 1.1rem;
+    }
+
+    .add-header .toggle-icon.open { transform: rotate(45deg); }
+
+    .add-form {
+      padding: 0 16px 16px;
+      display: none;
+    }
+
+    .add-form.visible { display: block; }
+
+    .type-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .type-btn {
+      flex: 1;
+      padding: 8px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .type-btn.active.expense { border-color: var(--expense); color: var(--expense); background: rgba(239,68,68,0.1); }
+    .type-btn.active.income { border-color: var(--income); color: var(--income); background: rgba(34,197,94,0.1); }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-field.full { grid-column: 1 / -1; }
+
+    .form-field label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .form-field input,
+    .form-field select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-field input:focus,
+    .form-field select:focus {
+      border-color: var(--accent);
+    }
+
+    .form-field select option { background: var(--surface); }
+
+    .submit-btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .submit-btn:hover { background: var(--accent-hover); }
+
+    /* Filters */
+    .filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filters select,
+    .filters input[type="month"] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 0.85rem;
+      outline: none;
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .filters select:focus,
+    .filters input[type="month"]:focus {
+      border-color: var(--accent);
+    }
+
+    .clear-btn {
+      padding: 7px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .clear-btn:hover { color: var(--text); }
+
+    /* Transaction List */
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .list-header h2 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .list-header .count {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .transaction-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .tx-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tx-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .tx-icon.income { background: rgba(34,197,94,0.15); }
+    .tx-icon.expense { background: rgba(239,68,68,0.15); }
+
+    .tx-info .tx-desc {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+
+    .tx-info .tx-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .tx-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .tx-amount {
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .tx-amount.income { color: var(--income); }
+    .tx-amount.expense { color: var(--expense); }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: color 0.15s;
+    }
+
+    .delete-btn:hover { color: var(--expense); }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state .emoji { font-size: 2.5rem; margin-bottom: 10px; }
+    .empty-state p { font-size: 0.9rem; }
+
+    .data-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .data-bar button {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .data-bar button:hover { color: var(--text); border-color: var(--accent); }
+
+    @media (max-width: 400px) {
+      .dashboard { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-field.full { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Budget Manager</h1>
+    <span>฿ THB</span>
+  </header>
+
+  <!-- Data Sync Bar -->
+  <div class="data-bar">
+    <button onclick="exportData()">⬇ Export JSON</button>
+    <button onclick="document.getElementById('import-input').click()">⬆ Import JSON</button>
+    <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard">
+    <div class="card balance">
+      <div class="label">Balance</div>
+      <div class="amount" id="balance">฿0</div>
+    </div>
+    <div class="card income-card">
+      <div class="label">Income</div>
+      <div class="amount" id="total-income">฿0</div>
+    </div>
+    <div class="card expense-card">
+      <div class="label">Expenses</div>
+      <div class="amount" id="total-expenses">฿0</div>
+    </div>
+  </div>
+
+  <!-- Add Transaction -->
+  <div class="add-section">
+    <div class="add-header" id="add-toggle">
+      <h2>Add Transaction</h2>
+      <span class="toggle-icon" id="toggle-icon">+</span>
+    </div>
+    <div class="add-form" id="add-form">
+      <div class="type-toggle">
+        <button class="type-btn expense active" id="btn-expense" onclick="setType('expense')">Expense</button>
+        <button class="type-btn income" id="btn-income" onclick="setType('income')">Income</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Amount (฿)</label>
+          <input type="number" id="f-amount" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-field">
+          <label>Date</label>
+          <input type="date" id="f-date">
+        </div>
+        <div class="form-field">
+          <label>Category</label>
+          <select id="f-category"></select>
+        </div>
+        <div class="form-field full">
+          <label>Description</label>
+          <input type="text" id="f-desc" placeholder="e.g. Lunch at MBK">
+        </div>
+      </div>
+      <button class="submit-btn" onclick="addTransaction()">Add Transaction</button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <input type="month" id="filter-month" onchange="render()">
+    <select id="filter-type" onchange="onTypeFilterChange()">
+      <option value="all">All types</option>
+      <option value="income">Income only</option>
+      <option value="expense">Expense only</option>
+    </select>
+    <select id="filter-cat" onchange="render()">
+      <option value="all">All categories</option>
+    </select>
+    <button class="clear-btn" onclick="clearFilters()">Clear</button>
+  </div>
+
+  <!-- List -->
+  <div class="list-header">
+    <h2>Transactions</h2>
+    <span class="count" id="tx-count"></span>
+  </div>
+  <div class="transaction-list" id="tx-list"></div>
+</div>
+
+<script>
+  const CATEGORIES = {
+    expense: ['Food', 'Transport', 'Bills', 'Shopping', 'Entertainment', 'Health', 'Other'],
+    income:  ['Salary', 'Freelance', 'Other']
+  };
+
+  const ICONS = {
+    Food: '🍜', Transport: '🚗', Bills: '💡', Shopping: '🛍️',
+    Entertainment: '🎬', Health: '🏥', Salary: '💼', Freelance: '💻', Other: '📦'
+  };
+
+  let currentType = 'expense';
+  let transactions = JSON.parse(localStorage.getItem('budget_txns') || '[]');
+
+  function save() {
+    localStorage.setItem('budget_txns', JSON.stringify(transactions));
+  }
+
+  function formatTHB(n) {
+    return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 }).format(n);
+  }
+
+  // Form
+  document.getElementById('add-toggle').addEventListener('click', () => {
+    const form = document.getElementById('add-form');
+    const icon = document.getElementById('toggle-icon');
+    const visible = form.classList.toggle('visible');
+    icon.classList.toggle('open', visible);
+  });
+
+  function setType(type) {
+    currentType = type;
+    document.getElementById('btn-expense').classList.toggle('active', type === 'expense');
+    document.getElementById('btn-income').classList.toggle('active', type === 'income');
+    populateCategories('f-category', CATEGORIES[type]);
+  }
+
+  function populateCategories(selectId, cats) {
+    const sel = document.getElementById(selectId);
+    sel.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+
+  function addTransaction() {
+    const amount = parseFloat(document.getElementById('f-amount').value);
+    const date   = document.getElementById('f-date').value;
+    const cat    = document.getElementById('f-category').value;
+    const desc   = document.getElementById('f-desc').value.trim();
+
+    if (!amount || amount <= 0) { alert('Please enter a valid amount.'); return; }
+    if (!date) { alert('Please select a date.'); return; }
+
+    transactions.unshift({
+      id: crypto.randomUUID(),
+      type: currentType,
+      amount,
+      category: cat,
+      description: desc || cat,
+      date
+    });
+
+    save();
+    render();
+
+    document.getElementById('f-amount').value = '';
+    document.getElementById('f-desc').value = '';
+  }
+
+  function deleteTransaction(id) {
+    transactions = transactions.filter(t => t.id !== id);
+    save();
+    render();
+  }
+
+  // Filters
+  function onTypeFilterChange() {
+    const type = document.getElementById('filter-type').value;
+    const sel  = document.getElementById('filter-cat');
+    sel.innerHTML = '<option value="all">All categories</option>';
+    if (type !== 'all') {
+      CATEGORIES[type].forEach(c => {
+        sel.innerHTML += `<option value="${c}">${c}</option>`;
+      });
+    }
+    render();
+  }
+
+  function clearFilters() {
+    document.getElementById('filter-month').value = '';
+    document.getElementById('filter-type').value = 'all';
+    document.getElementById('filter-cat').innerHTML = '<option value="all">All categories</option>';
+    render();
+  }
+
+  function applyFilters() {
+    const month = document.getElementById('filter-month').value;
+    const type  = document.getElementById('filter-type').value;
+    const cat   = document.getElementById('filter-cat').value;
+
+    return transactions.filter(t => {
+      if (month && !t.date.startsWith(month)) return false;
+      if (type !== 'all' && t.type !== type) return false;
+      if (cat !== 'all' && t.category !== cat) return false;
+      return true;
+    });
+  }
+
+  // Render
+  function renderDashboard() {
+    const income   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    document.getElementById('total-income').textContent   = formatTHB(income);
+    document.getElementById('total-expenses').textContent = formatTHB(expenses);
+    document.getElementById('balance').textContent        = formatTHB(income - expenses);
+  }
+
+  function renderList(filtered) {
+    const el = document.getElementById('tx-list');
+    document.getElementById('tx-count').textContent = `${filtered.length} item${filtered.length !== 1 ? 's' : ''}`;
+
+    if (filtered.length === 0) {
+      el.innerHTML = `<div class="empty-state"><div class="emoji">💸</div><p>No transactions found</p></div>`;
+      return;
+    }
+
+    el.innerHTML = filtered.map(t => {
+      const icon = ICONS[t.category] || '📦';
+      const sign = t.type === 'income' ? '+' : '-';
+      const dateStr = new Date(t.date + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      return `
+        <div class="tx-item">
+          <div class="tx-icon ${t.type}">${icon}</div>
+          <div class="tx-info">
+            <div class="tx-desc">${escHtml(t.description)}</div>
+            <div class="tx-meta">${t.category} · ${dateStr}</div>
+          </div>
+          <div class="tx-right">
+            <span class="tx-amount ${t.type}">${sign}${formatTHB(t.amount)}</span>
+            <button class="delete-btn" onclick="deleteTransaction('${t.id}')">✕ remove</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function render() {
+    renderDashboard();
+    renderList(applyFilters());
+  }
+
+  function exportData() {
+    const blob = new Blob([JSON.stringify(transactions, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `budget-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+  }
+
+  function importData(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const imported = JSON.parse(ev.target.result);
+        if (!Array.isArray(imported)) throw new Error();
+        const merged = [...transactions];
+        const existingIds = new Set(merged.map(t => t.id));
+        imported.forEach(t => { if (!existingIds.has(t.id)) merged.push(t); });
+        transactions = merged.sort((a, b) => b.date.localeCompare(a.date));
+        save();
+        render();
+        alert(`Imported successfully! ${imported.length} transactions merged.`);
+      } catch { alert('Invalid file. Please use a budget export JSON.'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Init
+  document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
+  populateCategories('f-category', CATEGORIES.expense);
+  render();
+</script>
+</body>
+</html>
