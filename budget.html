@@ -572,9 +572,10 @@
 
     document.getElementById('total-income').textContent   = fmt(income);
     document.getElementById('total-expenses').textContent = fmt(expenses);
-    document.getElementById('balance').textContent        = fmt(balance);
-    document.getElementById('balance-sub').textContent    =
-      fixed > 0 ? `After fixed costs: ${fmt(balance - fixed)}` : '';
+    const balanceAfterFixed = balance - fixed;
+    document.getElementById('balance').textContent     = fmt(fixed > 0 ? balanceAfterFixed : balance);
+    document.getElementById('balance-sub').textContent =
+      fixed > 0 ? `Before fixed: ${fmt(balance)}` : '';
 
     // Savings this month
     const mo     = thisMonth();
