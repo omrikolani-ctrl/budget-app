@@ -761,20 +761,27 @@
     document.getElementById('balance-sub').textContent    = fixed>0 ? `Before fixed: ${fmt(balance)}` : '';
 
     const mo    = thisMonth();
-    const saved = monthIncome(mo) - monthExpense(mo);
+    const mInc  = monthIncome(mo);
+    const mExp  = monthExpense(mo);
+    const saved = mInc > 0 ? Math.max(0, mInc - mExp) : 0;
     const savedEl = document.getElementById('saved-month');
     savedEl.textContent = fmt(saved);
-    savedEl.className   = 'card-amount'+(saved<0?' negative':savingsGoal>0&&saved<savingsGoal?' behind':'');
+    savedEl.className   = 'card-amount'+(savingsGoal>0&&saved<savingsGoal&&mInc>0?' behind':'');
 
     const barFill = document.getElementById('savings-bar-fill');
-    if (savingsGoal > 0) {
+    if (savingsGoal > 0 && mInc > 0) {
       const pct = Math.min(100, Math.max(0, (saved/savingsGoal)*100));
       document.getElementById('saved-sub').textContent = `Goal: ${fmt(savingsGoal)} · ${Math.round(pct)}%`;
       barFill.style.width = pct+'%';
-      barFill.className   = 'mini-bar-fill '+(saved<0?'negative':saved<savingsGoal?'behind':'ok');
+      barFill.className   = 'mini-bar-fill '+(saved<savingsGoal?'behind':'ok');
+    } else if (mInc === 0) {
+      document.getElementById('saved-sub').textContent = 'Add income to track savings';
+      barFill.style.width = '0%';
+      barFill.className   = 'mini-bar-fill ok';
     } else {
       document.getElementById('saved-sub').textContent = 'No goal set';
       barFill.style.width = '0%';
+      barFill.className   = 'mini-bar-fill ok';
     }
   }
 
