@@ -397,9 +397,11 @@
 
     /* ── Modal ── */
     .modal-overlay {
+      display: none;
       position: fixed; inset: 0; background: rgba(0,0,0,0.7);
       z-index: 300; align-items: flex-end; justify-content: center;
     }
+    .modal-overlay.is-open { display: flex; }
     .modal-box {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius) var(--radius) 0 0;
@@ -616,7 +618,7 @@
 </nav>
 
 <!-- ══ Edit Transaction Modal ══ -->
-<div id="modal-overlay" class="modal-overlay" onclick="if(event.target===this)closeModal()" style="display:none">
+<div id="modal-overlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal-box">
     <div class="modal-header">
       <h3>Edit Transaction</h3>
@@ -650,7 +652,7 @@
 </div>
 
 <!-- ══ Settings Modal ══ -->
-<div id="settings-overlay" class="modal-overlay" onclick="if(event.target===this)closeSettings()" style="display:none">
+<div id="settings-overlay" class="modal-overlay" onclick="if(event.target===this)closeSettings()">
   <div class="modal-box">
     <div class="modal-header">
       <h3>LINE Sync Settings</h3>
@@ -1106,7 +1108,7 @@
     document.getElementById('edit-desc').value   = t.description;
     populateCats('edit-category', CATEGORIES[t.type]);
     document.getElementById('edit-category').value = t.category;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    document.getElementById('modal-overlay').classList.add('is-open');
   }
 
   function setEditType(type) {
@@ -1132,7 +1134,7 @@
   }
 
   function closeModal() {
-    document.getElementById('modal-overlay').style.display = 'none';
+    document.getElementById('modal-overlay').classList.remove('is-open');
     editingId = null;
   }
 
@@ -1140,7 +1142,7 @@
   function openSettings() {
     document.getElementById('settings-url').value    = localStorage.getItem('budget_sync_url')    || '';
     document.getElementById('settings-secret').value = localStorage.getItem('budget_sync_secret') || '';
-    document.getElementById('settings-overlay').style.display = 'flex';
+    document.getElementById('settings-overlay').classList.add('is-open');
   }
 
   function saveSettings() {
@@ -1155,7 +1157,7 @@
   }
 
   function closeSettings() {
-    document.getElementById('settings-overlay').style.display = 'none';
+    document.getElementById('settings-overlay').classList.remove('is-open');
   }
 
   /* ── LINE Sync ─────────────────────────────────────────────────────────── */
