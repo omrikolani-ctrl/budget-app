@@ -398,7 +398,7 @@
     /* ── Modal ── */
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-      z-index: 300; display: flex; align-items: flex-end; justify-content: center;
+      z-index: 300; align-items: flex-end; justify-content: center;
     }
     .modal-box {
       background: var(--surface); border: 1px solid var(--border);
@@ -1210,7 +1210,7 @@
   }
 
   // Auto-sync silently on load if configured
-  if (localStorage.getItem('budget_sync_url')) {
+  if (localStorage.getItem('budget_sync_url') && localStorage.getItem('budget_sync_secret')) {
     setTimeout(() => syncFromLine(true), 1000);
   }
 
