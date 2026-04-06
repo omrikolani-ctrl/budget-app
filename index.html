@@ -395,6 +395,39 @@
       margin-bottom: 12px; margin-top: 4px;
     }
 
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 300; display: flex; align-items: flex-end; justify-content: center;
+    }
+    .modal-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius) var(--radius) 0 0;
+      padding: 20px; width: 100%; max-width: 480px;
+      max-height: 90vh; overflow-y: auto;
+      padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .modal-header h3 { font-size: 1rem; font-weight: 700; }
+    .modal-secondary-btn {
+      width: 100%; margin-top: 8px; padding: 11px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text-muted);
+      font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    }
+    .modal-secondary-btn:hover { color: var(--text); }
+
+    /* ── Search input ── */
+    .filter-bar input[type="text"] {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-xs); color: var(--text);
+      padding: 8px 10px; font-size: 0.82rem; outline: none; flex: 2; min-width: 120px;
+    }
+    .filter-bar input[type="text"]:focus { border-color: var(--accent); }
+
     @media (max-width: 380px) {
       .form-grid { grid-template-columns: 1fr; }
       .form-field.full { grid-column: 1; }
@@ -408,6 +441,7 @@
     <h1>Budget <span>฿</span></h1>
     <div class="header-actions">
       <button class="icon-btn" id="sync-btn" onclick="syncFromLine()" title="Sync from LINE bot">🤖 Sync</button>
+      <button class="icon-btn" onclick="openSettings()" title="Sync settings">⚙</button>
       <button class="icon-btn" onclick="exportData()">⬇</button>
       <button class="icon-btn" onclick="document.getElementById('import-input').click()">⬆</button>
       <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
@@ -555,6 +589,9 @@
     </select>
     <button class="filter-clear" onclick="clearFilters()">✕</button>
   </div>
+  <div class="filter-bar" style="margin-bottom:14px">
+    <input type="text" id="filter-search" placeholder="Search description…" oninput="render()">
+  </div>
   <div class="tx-list-header">
     <h3>Transactions</h3>
     <span id="tx-count"></span>
@@ -577,6 +614,60 @@
     <span class="nav-icon">📋</span>History
   </button>
 </nav>
+
+<!-- ══ Edit Transaction Modal ══ -->
+<div id="modal-overlay" class="modal-overlay" onclick="if(event.target===this)closeModal()" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Edit Transaction</h3>
+      <button class="del-btn" onclick="closeModal()">✕</button>
+    </div>
+    <div class="type-toggle" style="margin-top:12px">
+      <button class="type-btn expense" id="edit-btn-expense" onclick="setEditType('expense')">− Expense</button>
+      <button class="type-btn income"  id="edit-btn-income"  onclick="setEditType('income')">+ Income</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label>Amount (฿)</label>
+        <input type="number" id="edit-amount" min="0" step="1" inputmode="numeric">
+      </div>
+      <div class="form-field">
+        <label>Date</label>
+        <input type="date" id="edit-date">
+      </div>
+      <div class="form-field">
+        <label>Category</label>
+        <select id="edit-category"></select>
+      </div>
+      <div class="form-field full">
+        <label>Description</label>
+        <input type="text" id="edit-desc">
+      </div>
+    </div>
+    <button class="primary-btn" onclick="saveEdit()">Save Changes</button>
+    <button class="modal-secondary-btn" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ Settings Modal ══ -->
+<div id="settings-overlay" class="modal-overlay" onclick="if(event.target===this)closeSettings()" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>LINE Sync Settings</h3>
+      <button class="del-btn" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="form-field" style="margin-top:14px">
+      <label>Vercel Sync URL</label>
+      <input type="url" id="settings-url" placeholder="https://your-app.vercel.app/api/sync">
+    </div>
+    <div class="form-field" style="margin-top:10px">
+      <label>Sync Secret</label>
+      <input type="password" id="settings-secret" placeholder="Your sync secret" autocomplete="off">
+    </div>
+    <button class="primary-btn" onclick="saveSettings()">Save</button>
+    <button class="modal-secondary-btn" onclick="closeSettings()">Cancel</button>
+  </div>
+</div>
 
 <script>
   /* ── Constants ─────────────────────────────────────────────────────────── */
@@ -698,11 +789,40 @@
     saveFixed(); savePaid(); render();
   }
 
+  function pruneOldPaid() {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 3);
+    const cutoffStr = cutoff.toISOString().slice(0, 7);
+    let changed = false;
+    Object.keys(paidFixed).forEach(k => {
+      const mo = k.slice(-7);
+      if (mo < cutoffStr) { delete paidFixed[k]; changed = true; }
+    });
+    if (changed) savePaid();
+  }
+
   function togglePaid(id) {
-    const mo  = thisMonth();
-    const key = id+':'+mo;
-    if (paidFixed[key]) delete paidFixed[key];
-    else paidFixed[key] = true;
+    const mo    = thisMonth();
+    const key   = id+':'+mo;
+    const autoId = 'auto:'+id+':'+mo;
+    if (paidFixed[key]) {
+      delete paidFixed[key];
+      transactions = transactions.filter(t => t.id !== autoId);
+      save();
+    } else {
+      paidFixed[key] = true;
+      const f = fixedCosts.find(fc => fc.id === id);
+      if (f) {
+        transactions.unshift({
+          id: autoId,
+          type: 'expense', amount: f.amount, category: f.category,
+          description: f.name, date: new Date().toISOString().slice(0,10),
+          source: 'fixed-cost'
+        });
+        transactions.sort((a,b) => b.date.localeCompare(a.date));
+        save();
+      }
+    }
     savePaid(); render();
   }
 
@@ -729,20 +849,23 @@
   }
 
   function clearFilters() {
-    document.getElementById('filter-month').value = '';
-    document.getElementById('filter-type').value  = 'all';
+    document.getElementById('filter-month').value  = '';
+    document.getElementById('filter-type').value   = 'all';
+    document.getElementById('filter-search').value = '';
     document.getElementById('filter-cat').innerHTML = '<option value="all">All cats</option>';
     render();
   }
 
   function applyFilters() {
-    const month = document.getElementById('filter-month').value;
-    const type  = document.getElementById('filter-type').value;
-    const cat   = document.getElementById('filter-cat').value;
+    const month  = document.getElementById('filter-month').value;
+    const type   = document.getElementById('filter-type').value;
+    const cat    = document.getElementById('filter-cat').value;
+    const search = document.getElementById('filter-search').value.toLowerCase().trim();
     return transactions.filter(t => {
       if (month && !t.date.startsWith(month)) return false;
       if (type!=='all' && t.type!==type) return false;
       if (cat!=='all'  && t.category!==cat) return false;
+      if (search && !t.description.toLowerCase().includes(search) && !t.category.toLowerCase().includes(search)) return false;
       return true;
     });
   }
@@ -904,16 +1027,20 @@
       const icon    = ICONS[t.category]||'📦';
       const sign    = t.type==='income'?'+':'−';
       const dateStr = new Date(t.date+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+      const srcTag  = t.source==='fixed-cost' ? ' · 📌' : t.source==='line-bot' ? ' · 🤖' : '';
       return `
         <div class="tx-item">
           <div class="tx-icon ${t.type}">${icon}</div>
           <div>
             <div class="tx-desc">${escHtml(t.description)}</div>
-            <div class="tx-meta">${t.category} · ${dateStr}</div>
+            <div class="tx-meta">${t.category} · ${dateStr}${srcTag}</div>
           </div>
           <div class="tx-right">
             <span class="tx-amount ${t.type}">${sign}${fmt(t.amount)}</span>
-            <button class="tx-del" onclick="deleteTransaction('${t.id}')">✕</button>
+            <div style="display:flex;gap:4px">
+              <button class="tx-del" onclick="openEdit('${t.id}')" title="Edit">✏</button>
+              <button class="tx-del" onclick="deleteTransaction('${t.id}')" title="Delete">✕</button>
+            </div>
           </div>
         </div>`;
     }).join('');
@@ -962,20 +1089,82 @@
     e.target.value = '';
   }
 
-  /* ── LINE Sync ─────────────────────────────────────────────────────────── */
-  const SYNC_URL    = localStorage.getItem('budget_sync_url')    || '';
-  const SYNC_SECRET = localStorage.getItem('budget_sync_secret') || '';
+  /* ── Edit Transaction Modal ────────────────────────────────────────────── */
+  let editingId = null;
+  let editType  = 'expense';
 
+  function openEdit(id) {
+    const t = transactions.find(tx => tx.id === id);
+    if (!t) return;
+    editingId = id;
+    editType  = t.type;
+    document.getElementById('edit-btn-expense').classList.toggle('active', t.type === 'expense');
+    document.getElementById('edit-btn-income').classList.toggle('active',  t.type === 'income');
+    document.getElementById('edit-amount').value = t.amount;
+    document.getElementById('edit-date').value   = t.date;
+    document.getElementById('edit-desc').value   = t.description;
+    populateCats('edit-category', CATEGORIES[t.type]);
+    document.getElementById('edit-category').value = t.category;
+    document.getElementById('modal-overlay').style.display = 'flex';
+  }
+
+  function setEditType(type) {
+    editType = type;
+    document.getElementById('edit-btn-expense').classList.toggle('active', type === 'expense');
+    document.getElementById('edit-btn-income').classList.toggle('active',  type === 'income');
+    populateCats('edit-category', CATEGORIES[type]);
+  }
+
+  function saveEdit() {
+    const amount = parseFloat(document.getElementById('edit-amount').value);
+    const date   = document.getElementById('edit-date').value;
+    const cat    = document.getElementById('edit-category').value;
+    const desc   = document.getElementById('edit-desc').value.trim();
+    if (!amount || amount <= 0) { alert('Enter a valid amount.'); return; }
+    if (!date) { alert('Select a date.'); return; }
+    const idx = transactions.findIndex(t => t.id === editingId);
+    if (idx === -1) return;
+    transactions[idx] = { ...transactions[idx], type: editType, amount, category: cat, description: desc||cat, date };
+    transactions.sort((a,b) => b.date.localeCompare(a.date));
+    save(); render();
+    closeModal();
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').style.display = 'none';
+    editingId = null;
+  }
+
+  /* ── Settings Modal ─────────────────────────────────────────────────────── */
+  function openSettings() {
+    document.getElementById('settings-url').value    = localStorage.getItem('budget_sync_url')    || '';
+    document.getElementById('settings-secret').value = localStorage.getItem('budget_sync_secret') || '';
+    document.getElementById('settings-overlay').style.display = 'flex';
+  }
+
+  function saveSettings() {
+    const url    = document.getElementById('settings-url').value.trim();
+    const secret = document.getElementById('settings-secret').value.trim();
+    if (url)    localStorage.setItem('budget_sync_url',    url);
+    else        localStorage.removeItem('budget_sync_url');
+    if (secret) localStorage.setItem('budget_sync_secret', secret);
+    else        localStorage.removeItem('budget_sync_secret');
+    closeSettings();
+    showToast('Sync settings saved');
+  }
+
+  function closeSettings() {
+    document.getElementById('settings-overlay').style.display = 'none';
+  }
+
+  /* ── LINE Sync ─────────────────────────────────────────────────────────── */
   async function syncFromLine(silent) {
     const url    = localStorage.getItem('budget_sync_url');
     const secret = localStorage.getItem('budget_sync_secret');
     if (!url || !secret) {
-      const u = prompt('Enter your Vercel sync URL:\n(e.g. https://budget-app.vercel.app/api/sync)');
-      const s = prompt('Enter your sync secret:');
-      if (!u || !s) return;
-      localStorage.setItem('budget_sync_url', u.trim());
-      localStorage.setItem('budget_sync_secret', s.trim());
-      return syncFromLine(false);
+      openSettings();
+      showToast('Configure your sync settings first', true);
+      return;
     }
     const btn = document.getElementById('sync-btn');
     btn.textContent = '⏳ Syncing…'; btn.disabled = true;
@@ -1025,6 +1214,7 @@
   }
 
   /* ── Init ──────────────────────────────────────────────────────────────── */
+  pruneOldPaid();
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   populateCats('f-category', CATEGORIES.expense);
   render();
