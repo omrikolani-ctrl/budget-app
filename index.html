@@ -874,14 +874,15 @@
   function renderDashboard() {
     const income   = transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
     const expenses = transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-    const fixed    = fixedTotal();
     const balance  = income - expenses;
-    const balAfter = balance - fixed;
+    const mo       = thisMonth();
+    const unpaidFixed = fixedCosts.filter(f=>!isPaid(f.id,mo)).reduce((s,f)=>s+f.amount,0);
+    const balAfter = balance - unpaidFixed;
 
     document.getElementById('total-income').textContent   = fmt(income);
     document.getElementById('total-expenses').textContent = fmt(expenses);
-    document.getElementById('balance').textContent        = fmt(fixed>0 ? balAfter : balance);
-    document.getElementById('balance-sub').textContent    = fixed>0 ? `Before fixed: ${fmt(balance)}` : '';
+    document.getElementById('balance').textContent        = fmt(unpaidFixed>0 ? balAfter : balance);
+    document.getElementById('balance-sub').textContent    = unpaidFixed>0 ? `Before unpaid fixed: ${fmt(balance)}` : '';
 
     const mo    = thisMonth();
     const mInc  = monthIncome(mo);
