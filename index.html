@@ -422,6 +422,35 @@
     }
     .modal-secondary-btn:hover { color: var(--text); }
 
+    /* ── Pace cards ── */
+    .pace-row { display: flex; gap: 10px; margin-bottom: 14px; }
+    .pace-card {
+      flex: 1; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px;
+    }
+    .pace-card .pace-label {
+      font-size: 0.7rem; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;
+    }
+    .pace-card .pace-value { font-size: 1rem; font-weight: 700; }
+    .pace-card .pace-sub { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; }
+    .pace-card.ok  .pace-value { color: var(--income); }
+    .pace-card.warn .pace-value { color: var(--warning); }
+    .pace-card.bad .pace-value { color: var(--expense); }
+
+    /* ── Last month ── */
+    .lm-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .lm-cell { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px; text-align: center; }
+    .lm-cell .lm-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .lm-cell .lm-val { font-size: 0.88rem; font-weight: 700; }
+    .lm-cats { display: flex; flex-direction: column; gap: 6px; }
+    .lm-cat-row { display: flex; justify-content: space-between; font-size: 0.82rem; }
+    .lm-cat-row span:first-child { color: var(--text-muted); }
+    .lm-cat-row span:last-child { font-weight: 600; }
+
+    /* ── Limit pace line ── */
+    .limit-pace { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 8px; }
+
     /* ── Search input ── */
     .filter-bar input[type="text"] {
       background: var(--surface); border: 1px solid var(--border);
@@ -484,6 +513,36 @@
       <span class="card-icon">📉</span>
       <div class="card-label">Expenses</div>
       <div class="card-amount" id="total-expenses">฿0</div>
+    </div>
+  </div>
+
+  <!-- Pace cards -->
+  <div class="pace-row" id="pace-row" style="display:none">
+    <div class="pace-card" id="pace-daily-card">
+      <div class="pace-label">Left / Day</div>
+      <div class="pace-value" id="pace-daily-val">—</div>
+      <div class="pace-sub" id="pace-daily-sub"></div>
+    </div>
+    <div class="pace-card" id="pace-track-card">
+      <div class="pace-label">Projected Savings</div>
+      <div class="pace-value" id="pace-track-val">—</div>
+      <div class="pace-sub" id="pace-track-sub"></div>
+    </div>
+  </div>
+
+  <!-- Last month -->
+  <div class="block" id="last-month-block" style="display:none">
+    <div class="block-header" onclick="toggleBlock('lastmo')">
+      <h3>Last Month</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="block-meta" id="lastmo-meta"></span>
+        <span class="block-chevron" id="lastmo-chevron">▼</span>
+      </div>
+    </div>
+    <div class="block-body" id="lastmo-body">
+      <div class="lm-grid" id="lastmo-grid"></div>
+      <div class="section-title">Top spending</div>
+      <div class="lm-cats" id="lastmo-cats"></div>
     </div>
   </div>
 
@@ -686,12 +745,14 @@
   let budgetLimits = JSON.parse(localStorage.getItem('budget_limits')  || '{}');
   let paidFixed    = JSON.parse(localStorage.getItem('budget_paid')    || '{}');
   let savingsGoal  = parseFloat(localStorage.getItem('budget_goal')    || '0');
+  let monthHistory = JSON.parse(localStorage.getItem('budget_history') || '{}');
 
-  const save       = () => localStorage.setItem('budget_txns',   JSON.stringify(transactions));
-  const saveFixed  = () => localStorage.setItem('budget_fixed',  JSON.stringify(fixedCosts));
-  const saveLimits = () => localStorage.setItem('budget_limits', JSON.stringify(budgetLimits));
-  const savePaid   = () => localStorage.setItem('budget_paid',   JSON.stringify(paidFixed));
-  const saveGoal   = () => localStorage.setItem('budget_goal',   savingsGoal);
+  const save        = () => localStorage.setItem('budget_txns',    JSON.stringify(transactions));
+  const saveFixed   = () => localStorage.setItem('budget_fixed',   JSON.stringify(fixedCosts));
+  const saveLimits  = () => localStorage.setItem('budget_limits',  JSON.stringify(budgetLimits));
+  const savePaid    = () => localStorage.setItem('budget_paid',    JSON.stringify(paidFixed));
+  const saveGoal    = () => localStorage.setItem('budget_goal',    savingsGoal);
+  const saveHistory = () => localStorage.setItem('budget_history', JSON.stringify(monthHistory));
 
   /* ── Helpers ───────────────────────────────────────────────────────────── */
   const fmt      = n => new Intl.NumberFormat('th-TH',{style:'currency',currency:'THB',maximumFractionDigits:0}).format(n);
@@ -789,6 +850,95 @@
     // clean paid entries for deleted item
     Object.keys(paidFixed).forEach(k=>{ if(k.startsWith(id+':')) delete paidFixed[k]; });
     saveFixed(); savePaid(); render();
+  }
+
+  /* ── Last month snapshot ───────────────────────────────────────────────── */
+  function snapshotLastMonth() {
+    const now = new Date();
+    const lm  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMo = lm.toISOString().slice(0, 7);
+    if (monthHistory[lastMo]) return;
+    const inc = monthIncome(lastMo);
+    const exp = monthExpense(lastMo);
+    if (inc === 0 && exp === 0) return;
+    const cats = {};
+    EXPENSE_CATS.forEach(cat => { const s = monthSpend(cat, lastMo); if (s > 0) cats[cat] = s; });
+    monthHistory[lastMo] = { income: inc, expenses: exp, saved: Math.max(0, inc - exp), categories: cats };
+    saveHistory();
+  }
+
+  /* ── Render: pace cards ─────────────────────────────────────────────────── */
+  function renderPace() {
+    const mo  = thisMonth();
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysPassed  = now.getDate();
+    const daysLeft    = Math.max(1, daysInMonth - daysPassed);
+    const mInc = monthIncome(mo);
+    const mExp = monthExpense(mo);
+
+    const paceRow = document.getElementById('pace-row');
+    if (mInc === 0) { paceRow.style.display = 'none'; return; }
+    paceRow.style.display = 'flex';
+
+    // Left per day
+    const spendableBudget = savingsGoal > 0 ? mInc - savingsGoal : mInc;
+    const leftToSpend     = Math.max(0, spendableBudget - mExp);
+    const leftPerDay      = Math.round(leftToSpend / daysLeft);
+    const dailyCard       = document.getElementById('pace-daily-card');
+    document.getElementById('pace-daily-val').textContent = fmt(leftPerDay);
+    document.getElementById('pace-daily-sub').textContent = `${daysLeft} days left this month`;
+    dailyCard.className = 'pace-card ' + (leftToSpend >= 0 ? 'ok' : 'bad');
+
+    // Projected savings
+    const dailyRate      = daysPassed > 0 ? mExp / daysPassed : 0;
+    const projectedExp   = dailyRate * daysInMonth;
+    const projectedSaved = Math.max(0, mInc - projectedExp);
+    const trackCard      = document.getElementById('pace-track-card');
+    document.getElementById('pace-track-val').textContent = fmt(projectedSaved);
+    if (savingsGoal > 0) {
+      const diff = projectedSaved - savingsGoal;
+      document.getElementById('pace-track-sub').textContent = diff >= 0 ? 'On track ✅' : `฿${fmt(Math.abs(diff))} short ⚠️`;
+      trackCard.className = 'pace-card ' + (diff >= 0 ? 'ok' : 'warn');
+    } else {
+      document.getElementById('pace-track-sub').textContent = 'Projected this month';
+      trackCard.className = 'pace-card ok';
+    }
+  }
+
+  /* ── Render: last month ─────────────────────────────────────────────────── */
+  function renderLastMonth() {
+    const now    = new Date();
+    const lm     = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMo = lm.toISOString().slice(0, 7);
+    const data   = monthHistory[lastMo];
+    const block  = document.getElementById('last-month-block');
+    if (!data) { block.style.display = 'none'; return; }
+    block.style.display = 'block';
+
+    document.getElementById('lastmo-meta').textContent =
+      lm.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+    document.getElementById('lastmo-grid').innerHTML = `
+      <div class="lm-cell">
+        <div class="lm-label">Income</div>
+        <div class="lm-val" style="color:var(--income)">${fmt(data.income)}</div>
+      </div>
+      <div class="lm-cell">
+        <div class="lm-label">Spent</div>
+        <div class="lm-val" style="color:var(--expense)">${fmt(data.expenses)}</div>
+      </div>
+      <div class="lm-cell">
+        <div class="lm-label">Saved</div>
+        <div class="lm-val" style="color:${data.saved > 0 ? 'var(--income)' : 'var(--expense)'}">${fmt(data.saved)}</div>
+      </div>`;
+
+    const sorted = Object.entries(data.categories || {}).sort((a,b) => b[1]-a[1]).slice(0, 4);
+    document.getElementById('lastmo-cats').innerHTML = sorted.map(([cat, amt]) => `
+      <div class="lm-cat-row">
+        <span>${ICONS[cat]||'📦'} ${cat}</span>
+        <span>${fmt(amt)}</span>
+      </div>`).join('');
   }
 
   function pruneOldPaid() {
@@ -991,13 +1141,18 @@
   }
 
   function renderLimits() {
-    const mo = thisMonth();
+    const mo          = thisMonth();
+    const now         = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysLeft    = Math.max(1, daysInMonth - now.getDate());
     document.getElementById('limits-list').innerHTML = EXPENSE_CATS.map(cat => {
       const spent = monthSpend(cat, mo);
       const limit = budgetLimits[cat] || 0;
       const pct   = limit > 0 ? Math.min(100, (spent/limit)*100) : 0;
       const cls   = pct>=100?'over':pct>=80?'warn':'ok';
       const clr   = pct>=100?'var(--expense)':pct>=80?'var(--warning)':'var(--text)';
+      const left  = limit > 0 ? limit - spent : 0;
+      const pace  = limit > 0 ? `<div class="limit-pace">${fmt(Math.max(0,left))} left · ฿${Math.round(Math.max(0,left)/daysLeft).toLocaleString()}/day remaining</div>` : '';
       return `
         <div class="limit-item">
           <div class="limit-row">
@@ -1008,6 +1163,7 @@
             </span>
           </div>
           ${limit>0?`<div class="limit-bar"><div class="limit-bar-fill ${cls}" style="width:${pct}%"></div></div>`:''}
+          ${pace}
           <div class="limit-input-row">
             <input type="number" id="limit-input-${cat}" placeholder="Monthly limit (฿)" value="${limit||''}" min="0" inputmode="numeric">
             <button class="set-btn" onclick="setLimit('${cat}')">Set</button>
@@ -1054,12 +1210,12 @@
     if (currentPage === 'fixed')   { renderFixed(); }
     if (currentPage === 'budget')  { renderLimits(); }
     if (currentPage === 'txns')    { renderList(applyFilters()); }
-    if (currentPage === 'overview'){ renderFixed(); } // for warnings from fixed
+    if (currentPage === 'overview'){ renderFixed(); renderPace(); renderLastMonth(); }
   }
 
   /* ── Export / Import ───────────────────────────────────────────────────── */
   function exportData() {
-    const data = { transactions, fixedCosts, budgetLimits, paidFixed, savingsGoal };
+    const data = { transactions, fixedCosts, budgetLimits, paidFixed, savingsGoal, monthHistory };
     const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1082,6 +1238,7 @@
           if (d.budgetLimits) { budgetLimits = d.budgetLimits; saveLimits(); }
           if (d.paidFixed)    { paidFixed = d.paidFixed;       savePaid(); }
           if (d.savingsGoal)  { savingsGoal = d.savingsGoal;   saveGoal(); }
+          if (d.monthHistory) { monthHistory = d.monthHistory; saveHistory(); }
         }
         save(); render();
         alert(`Imported — ${incoming.length} transactions merged.`);
@@ -1217,6 +1374,7 @@
 
   /* ── Init ──────────────────────────────────────────────────────────────── */
   pruneOldPaid();
+  snapshotLastMonth();
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   populateCats('f-category', CATEGORIES.expense);
   render();
